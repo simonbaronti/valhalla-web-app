@@ -11,9 +11,13 @@ import { RootComponent } from './components/root-component';
 import * as TanStackQueryProvider from './lib/tanstack-query/root-provider';
 import { searchParamsSchema, isValidTab } from './utils/route-schemas';
 import type { Profile } from './stores/common-store';
+import { isEmbedMode, embedProfile } from './utils/embed-mode';
 
-const defaultProfile = ((import.meta.env
-  .VITE_DEFAULT_COSTING_MODEL as string) || 'bicycle') as Profile;
+const defaultProfile = (
+  isEmbedMode
+    ? embedProfile
+    : (import.meta.env.VITE_DEFAULT_COSTING_MODEL as string) || 'bicycle'
+) as Profile;
 
 export const rootRoute = createRootRoute({ component: RootComponent });
 

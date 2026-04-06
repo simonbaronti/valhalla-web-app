@@ -25,6 +25,7 @@ import { SettingsButton } from './settings-button';
 import type { Profile } from '@/stores/common-store';
 import { useDirectionsQuery } from '@/hooks/use-directions-queries';
 import { useIsochronesQuery } from '@/hooks/use-isochrones-queries';
+import { isEmbedMode } from '@/utils/embed-mode';
 
 const TAB_CONFIG = {
   directions: {
@@ -92,50 +93,64 @@ export const RoutePlanner = () => {
     }
   };
 
+  // In embed mode, the panel is always open and cannot be closed
+  const isOpen = isEmbedMode ? true : directionsPanelOpen;
+
   return (
-    <Sheet open={directionsPanelOpen} modal={false}>
+    <Sheet open={isOpen} modal={false}>
       <Tabs
-        value={activeTab}
+        value={isEmbedMode ? 'directions' : activeTab}
         className="w-[400px]"
-        onValueChange={handleTabChange}
+        onValueChange={isEmbedMode ? undefined : handleTabChange}
       >
         <SheetContent
           side="left"
           className="w-[400px] sm:max-w-[unset] max-h-screen overflow-y-auto gap-1"
         >
           <SheetHeader className="justify-between">
-            <TabsList>
-              <TabsTrigger
-                value="directions"
-                data-testid="directions-tab-button"
+            {!isEmbedMode && (
+              <TabsList>
+                <TabsTrigger
+                  value="directions"
+                  data-testid="directions-tab-button"
+                >
+                  Directions
+                </TabsTrigger>
+                <TabsTrigger
+                  value="isochrones"
+                  data-testid="isochrones-tab-button"
+                >
+                  Isochrones
+                </TabsTrigger>
+                <TabsTrigger value="tiles" data-testid="tiles-tab-button">
+                  Tiles
+                </TabsTrigger>
+              </TabsList>
+            )}
+            {isEmbedMode && (
+              <SheetTitle className="text-lg font-semibold px-1">
+                Route Planner
+              </SheetTitle>
+            )}
+            {!isEmbedMode && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleDirections}
+                data-testid="close-directions-button"
               >
-                Directions
-              </TabsTrigger>
-              <TabsTrigger
-                value="isochrones"
-                data-testid="isochrones-tab-button"
-              >
-                Isochrones
-              </TabsTrigger>
-              <TabsTrigger value="tiles" data-testid="tiles-tab-button">
-                Tiles
-              </TabsTrigger>
-            </TabsList>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleDirections}
-              data-testid="close-directions-button"
-            >
-              <X className="size-4" />
-            </Button>
-            <SheetTitle className="sr-only">{tabConfig.title}</SheetTitle>
+                <X className="size-4" />
+              </Button>
+            )}
+            {!isEmbedMode && (
+              <SheetTitle className="sr-only">{tabConfig.title}</SheetTitle>
+            )}
             <SheetDescription className="sr-only">
-              {tabConfig.description}
+              {isEmbedMode ? 'Plan a pedestrian route' : tabConfig.description}
             </SheetDescription>
           </SheetHeader>
 
-          {activeTab !== 'tiles' && (
+          {!isEmbedMode && activeTab !== 'tiles' && (
             <div className="flex justify-between px-2 mb-1">
               <ProfilePicker
                 loading={loading}
@@ -148,19 +163,26 @@ export const RoutePlanner = () => {
           <TabsContent value="directions" className="flex flex-col gap-3 px-2">
             <DirectionsControl />
           </TabsContent>
-          <TabsContent value="isochrones" className="flex flex-col gap-3 px-2">
-            <IsochronesControl />
-          </TabsContent>
-          <TabsContent
-            value="tiles"
-            className="flex flex-col gap-3 px-2 flex-1 overflow-hidden min-h-0"
-          >
-            <Suspense fallback={<div>Loading...</div>}>
-              <TilesControl />
-            </Suspense>
-          </TabsContent>
+          {!isEmbedMode && (
+            <TabsContent
+              value="isochrones"
+              className="flex flex-col gap-3 px-2"
+            >
+              <IsochronesControl />
+            </TabsContent>
+          )}
+          {!isEmbedMode && (
+            <TabsContent
+              value="tiles"
+              className="flex flex-col gap-3 px-2 flex-1 overflow-hidden min-h-0"
+            >
+              <Suspense fallback={<div>Loading...</div>}>
+                <TilesControl />
+              </Suspense>
+            </TabsContent>
+          )}
 
-          {activeTab !== 'tiles' && (
+          {!isEmbedMode && activeTab !== 'tiles' && (
             <div className="flex p-2 text-sm">
               {isLoadingLastUpdate && (
                 <span className="text-muted-foreground">

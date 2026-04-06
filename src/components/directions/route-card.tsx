@@ -16,11 +16,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Download } from 'lucide-react';
+import { Download, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { exportDataAsJson } from '@/utils/export';
 import { getDateTimeString } from '@/utils/date-time';
+import { isEmbedMode, postRouteToParent } from '@/utils/embed-mode';
 
 interface RouteCardProps {
   data: ParsedDirectionsGeometry;
@@ -95,24 +96,40 @@ export const RouteCard = ({
                 {showManeuvers ? 'Hide Maneuvers' : 'Show Maneuvers'}
               </Button>
             </CollapsibleTrigger>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Download className="size-4" />
-                  Export
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem
-                  onClick={() => exportDataAsJson(data, 'valhalla-directions')}
-                >
-                  JSON
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={exportToGeoJson}>
-                  GeoJSON
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {isEmbedMode ? (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  postRouteToParent(data);
+                }}
+              >
+                <Save className="size-4" />
+                Save Route
+              </Button>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Download className="size-4" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      exportDataAsJson(data, 'valhalla-directions')
+                    }
+                  >
+                    JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportToGeoJson}>
+                    GeoJSON
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
           <CollapsibleContent>
             <Separator className="my-2" />

@@ -3,14 +3,17 @@ import { MapComponent } from './components/map';
 import { RoutePlanner } from './components/route-planner';
 import { SettingsPanel } from './components/settings-panel/settings-panel';
 import { Toaster } from '@/components/ui/sonner';
+import { isEmbedMode } from '@/utils/embed-mode';
 
 export const App = () => {
   return (
     <MapProvider>
       <MapComponent />
       <RoutePlanner />
-      <SettingsPanel />
-      <Toaster position="bottom-center" duration={5000} richColors />
+      {!isEmbedMode && <SettingsPanel />}
+      {!isEmbedMode && (
+        <Toaster position="bottom-center" duration={5000} richColors />
+      )}
     </MapProvider>
   );
 };

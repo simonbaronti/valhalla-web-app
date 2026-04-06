@@ -7,6 +7,7 @@ import {
   settingsInitTruckOverride,
 } from '@/components/settings-panel/settings-options';
 import { z } from 'zod';
+import { isEmbedMode } from '@/utils/embed-mode';
 
 export const profileEnum = z.enum([
   'auto',
@@ -51,7 +52,7 @@ export const useCommonStore = create<CommonStore>()(
   devtools(
     immer((set) => ({
       settingsPanelOpen: false,
-      directionsPanelOpen: false,
+      directionsPanelOpen: isEmbedMode ? true : false,
       coordinates: [],
       loading: false,
       settings: { ...settingsInit },
