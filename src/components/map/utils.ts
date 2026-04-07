@@ -102,6 +102,23 @@ export const getInitialMapPosition = (): {
 } => {
   const defaults = { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
 
+  // URL params take highest priority (used by embed mode to center on model)
+  const params = new URLSearchParams(window.location.search);
+  const latParam = params.get('lat');
+  const lngParam = params.get('lng');
+  const zoomParam = params.get('zoom');
+
+  if (latParam && lngParam) {
+    const lat = parseFloat(latParam);
+    const lng = parseFloat(lngParam);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return {
+        center: [lng, lat] as [number, number],
+        zoom: zoomParam ? parseFloat(zoomParam) || DEFAULT_ZOOM : 14,
+      };
+    }
+  }
+
   try {
     const stored = localStorage.getItem(LAST_CENTER_KEY);
     if (!stored) return defaults;
