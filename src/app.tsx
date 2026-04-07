@@ -11,9 +11,7 @@ export const App = () => {
       <MapComponent />
       <RoutePlanner />
       {!isEmbedMode && <SettingsPanel />}
-      {!isEmbedMode && (
-        <Toaster position="bottom-center" duration={5000} richColors />
-      )}
+      <Toaster position="bottom-center" duration={5000} richColors />
     </MapProvider>
   );
 };

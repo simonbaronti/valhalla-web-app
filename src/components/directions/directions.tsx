@@ -26,6 +26,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { isEmbedMode } from '@/utils/embed-mode';
+import { SliderSetting } from '@/components/ui/slider-setting';
+import { CheckboxSetting } from '@/components/ui/checkbox-setting';
 
 export const DirectionsControl = () => {
   const waypoints = useDirectionsStore((state) => state.waypoints);
@@ -40,6 +43,8 @@ export const DirectionsControl = () => {
   const navigate = useNavigate({ from: '/$activeTab' });
   const updateDateTime = useCommonStore((state) => state.updateDateTime);
   const dateTime = useCommonStore((state) => state.dateTime);
+  const settings = useCommonStore((state) => state.settings);
+  const updateSettings = useCommonStore((state) => state.updateSettings);
   const { refetch: refetchDirections } = useDirectionsQuery();
   const { reverseGeocode } = useReverseGeocodeDirections();
   const { optimizeRoute, isPending: isOptimizing } = useOptimizedRouteQuery();
@@ -143,33 +148,77 @@ export const DirectionsControl = () => {
             Reset Waypoints
           </Button>
         </div>
-        <Tooltip open={activeWaypointsCount >= 4 ? false : undefined}>
-          <TooltipTrigger asChild>
-            <span>
-              <Button
-                variant="outline"
-                onClick={() => optimizeRoute()}
-                disabled={
-                  activeWaypointsCount < 4 || isOptimizing || isOptimized
-                }
-                className="w-full"
-              >
-                <Sparkles className="size-4" />
-                Optimize Route
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>You should have at least 4 waypoints to optimize the route</p>
-          </TooltipContent>
-        </Tooltip>
-        <DateTimePicker
-          type={dateTime.type}
-          value={dateTime.value}
-          onChange={handleDateTimeChange}
-        />
-        <Separator />
-        <SettingsFooter />
+        {!isEmbedMode && (
+          <Tooltip open={activeWaypointsCount >= 4 ? false : undefined}>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  variant="outline"
+                  onClick={() => optimizeRoute()}
+                  disabled={
+                    activeWaypointsCount < 4 || isOptimizing || isOptimized
+                  }
+                  className="w-full"
+                >
+                  <Sparkles className="size-4" />
+                  Optimize Route
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>You should have at least 4 waypoints to optimize the route</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {isEmbedMode && (
+          <div className="flex flex-col gap-2">
+            <Separator />
+            <SliderSetting
+              id="walking_speed"
+              label="Walking Speed"
+              description="Walking speed in km/h"
+              min={0.5}
+              max={25}
+              step={0.1}
+              value={(settings.walking_speed as number) ?? 5.1}
+              unit="km/h"
+              onValueChange={(values) => {
+                updateSettings('walking_speed', values[0] ?? 5.1);
+              }}
+              onValueCommit={() => refetchDirections()}
+              onInputChange={(values) => {
+                let value = values[0] ?? 5.1;
+                if (isNaN(value)) value = 0.5;
+                value = Math.max(0.5, Math.min(value, 25));
+                updateSettings('walking_speed', value);
+                refetchDirections();
+              }}
+            />
+            <CheckboxSetting
+              id="shortest"
+              label="Shortest"
+              description="Use shortest distance instead of fastest time"
+              checked={Boolean(settings.shortest)}
+              onCheckedChange={(checked) => {
+                updateSettings('shortest', checked);
+                refetchDirections();
+              }}
+            />
+          </div>
+        )}
+
+        {!isEmbedMode && (
+          <>
+            <DateTimePicker
+              type={dateTime.type}
+              value={dateTime.value}
+              onChange={handleDateTimeChange}
+            />
+            <Separator />
+            <SettingsFooter />
+          </>
+        )}
       </div>
       {results.data && (
         <div>

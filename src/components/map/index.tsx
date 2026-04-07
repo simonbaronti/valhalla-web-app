@@ -28,6 +28,7 @@ import OSMIcon from '@/images/osm_icon.png';
 import { ToolButton } from './parts/tool-button';
 
 import { MapStyleControl } from './map-style-control';
+import { isEmbedMode } from '@/utils/embed-mode';
 import { getInitialMapStyle, getCustomStyle, getMapStyleUrl } from './utils';
 import {
   CLICK_DELAY_MS,
@@ -828,13 +829,20 @@ export const MapComponent = () => {
         id="mainMap"
       >
         <NavigationControl />
-        <GeolocateControl onError={handleGeolocateError} />
-        <DrawControl onUpdate={updateExcludePolygons} controlRef={drawRef} />
-        <MapStyleControl
-          customStyleData={customStyleData}
-          onStyleChange={handleStyleChange}
-          onCustomStyleLoaded={handleCustomStyleLoaded}
-        />
+        {!isEmbedMode && (
+          <>
+            <GeolocateControl onError={handleGeolocateError} />
+            <DrawControl
+              onUpdate={updateExcludePolygons}
+              controlRef={drawRef}
+            />
+            <MapStyleControl
+              customStyleData={customStyleData}
+              onStyleChange={handleStyleChange}
+              onCustomStyleLoaded={handleCustomStyleLoaded}
+            />
+          </>
+        )}
         <RouteLines />
         <HighlightSegment />
         <IsochronePolygons />
@@ -927,66 +935,75 @@ export const MapComponent = () => {
 
         <BrandLogos />
 
-        <div className="absolute bottom-10 right-4 z-10 flex flex-col gap-2">
-          <HeightGraph
-            data={heightgraphData}
-            disabled={!directionsSuccessful}
-            width={
-              directionsPanelOpen
-                ? window.innerWidth * 0.75
-                : window.innerWidth * 0.9
-            }
-            height={200}
-            onExpand={(expanded) => {
-              if (expanded) {
-                getHeightData();
+        {!isEmbedMode && (
+          <div className="absolute bottom-10 right-4 z-10 flex flex-col gap-2">
+            <HeightGraph
+              data={heightgraphData}
+              disabled={!directionsSuccessful}
+              width={
+                directionsPanelOpen
+                  ? window.innerWidth * 0.75
+                  : window.innerWidth * 0.9
               }
-            }}
-            onHighlight={throttledSetHeightgraphHoverDistance}
-          />
-          <ToolButton
-            title="Open on osm.org"
-            icon={
-              <img
-                src={OSMIcon}
-                width={28}
-                height={28}
-                alt="openstreetmap.org link"
-              />
-            }
-            onClick={handleOpenOSM}
-            data-testid="osm-button"
-          />
-        </div>
+              height={200}
+              onExpand={(expanded) => {
+                if (expanded) {
+                  getHeightData();
+                }
+              }}
+              onHighlight={throttledSetHeightgraphHoverDistance}
+            />
+            <ToolButton
+              title="Open on osm.org"
+              icon={
+                <img
+                  src={OSMIcon}
+                  width={28}
+                  height={28}
+                  alt="openstreetmap.org link"
+                />
+              }
+              onClick={handleOpenOSM}
+              data-testid="osm-button"
+            />
+          </div>
+        )}
       </Map>
 
-      <div
-        className="absolute top-4 left-4 z-10 flex flex-col gap-2"
-        aria-label="Panel shortcuts"
-      >
-        <ToolButton
-          title="Directions"
-          icon={
-            <img src={RoutingIcon} width={42} height={42} alt="Directions" />
-          }
-          onClick={() => handleNavigateToTab('directions')}
-          data-testid="tab-directions-button"
-        />
-        <ToolButton
-          title="Isochrones"
-          icon={
-            <img src={IsochronesIcon} width={42} height={42} alt="Isochrones" />
-          }
-          onClick={() => handleNavigateToTab('isochrones')}
-          data-testid="tab-isochrones-button"
-        />
-        <ToolButton
-          title="Tiles"
-          icon={<img src={MvtIcon} width={42} height={42} alt="Tiles" />}
-          onClick={() => handleNavigateToTab('tiles')}
-          data-testid="tab-tiles-button"
-        />
-      </div>
+      {!isEmbedMode && (
+        <div
+          className="absolute top-4 left-4 z-10 flex flex-col gap-2"
+          aria-label="Panel shortcuts"
+        >
+          <ToolButton
+            title="Directions"
+            icon={
+              <img src={RoutingIcon} width={42} height={42} alt="Directions" />
+            }
+            onClick={() => handleNavigateToTab('directions')}
+            data-testid="tab-directions-button"
+          />
+          <ToolButton
+            title="Isochrones"
+            icon={
+              <img
+                src={IsochronesIcon}
+                width={42}
+                height={42}
+                alt="Isochrones"
+              />
+            }
+            onClick={() => handleNavigateToTab('isochrones')}
+            data-testid="tab-isochrones-button"
+          />
+          <ToolButton
+            title="Tiles"
+            icon={<img src={MvtIcon} width={42} height={42} alt="Tiles" />}
+            onClick={() => handleNavigateToTab('tiles')}
+            data-testid="tab-tiles-button"
+          />
+        </div>
+      )}
     </>
   );
 };
