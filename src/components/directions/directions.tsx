@@ -125,7 +125,7 @@ export const DirectionsControl = () => {
     <>
       <div className="flex flex-col gap-3 border rounded-md p-2">
         <Waypoints />
-        <div className="flex justify-between gap-4">
+        <div className="flex flex-col gap-2">
           <Button
             variant="outline"
             onClick={handleAddWaypoint}

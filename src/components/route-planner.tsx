@@ -100,12 +100,12 @@ export const RoutePlanner = () => {
     <Sheet open={isOpen} modal={false}>
       <Tabs
         value={isEmbedMode ? 'directions' : activeTab}
-        className="w-[400px]"
+        className="w-[300px]"
         onValueChange={isEmbedMode ? undefined : handleTabChange}
       >
         <SheetContent
           side="left"
-          className="w-[400px] sm:max-w-[unset] max-h-screen overflow-y-auto gap-1"
+          className="w-[300px] sm:max-w-[unset] max-h-screen overflow-y-auto gap-1"
         >
           <SheetHeader className="justify-between">
             {!isEmbedMode && (
