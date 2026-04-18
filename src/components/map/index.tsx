@@ -76,7 +76,7 @@ import { toast } from 'sonner';
 const { center, zoom: zoom_initial } = getInitialMapPosition();
 
 // Lock panning to ~10 miles (16.09 km) of the initial centre.
-const ORIGIN_LOCK_MILES = 10;
+const ORIGIN_LOCK_MILES = 3;
 const originLockBounds = ((): [[number, number], [number, number]] => {
   const km = ORIGIN_LOCK_MILES * 1.609344;
   const latDelta = km / 111;

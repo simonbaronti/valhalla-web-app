@@ -121,18 +121,22 @@ export function installInvertedTouchGestures(map: Map): () => void {
       const currentCentroidX = (t1.clientX + t2.clientX) / 2;
       const currentCentroidY = (t1.clientY + t2.clientY) / 2;
 
-      const zoomDelta = Math.log2(currentDistance / touch.startDistance);
-      const nextZoom = touch.startZoom + zoomDelta;
+      // Zoom: pinch distance + vertical centroid drift both feed zoom,
+      // so two-finger up/down and pinch-in/out both zoom.
+      const pinchZoomDelta = Math.log2(currentDistance / touch.startDistance);
+      const verticalZoomDelta =
+        -(currentCentroidY - touch.startCentroidY) * 0.01;
+      const nextZoom = touch.startZoom + pinchZoomDelta + verticalZoomDelta;
 
+      // Pan: horizontal centroid drift only — vertical drift is for zoom.
       const startCenterPoint = map.project([
         touch.startCenterLng,
         touch.startCenterLat,
       ]);
       const panDx = currentCentroidX - touch.startCentroidX;
-      const panDy = currentCentroidY - touch.startCentroidY;
       const nextCenter = map.unproject([
         startCenterPoint.x - panDx,
-        startCenterPoint.y - panDy,
+        startCenterPoint.y,
       ]);
 
       map.jumpTo({ zoom: nextZoom, center: nextCenter });
