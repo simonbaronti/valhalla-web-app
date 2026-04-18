@@ -96,8 +96,16 @@ export function installInvertedTouchGestures(map: Map): () => void {
     }
   };
 
+  const isOnMarker = (target: EventTarget | null) =>
+    target instanceof Element && !!target.closest('.maplibregl-marker');
+
   const onTouchStart = (e: TouchEvent) => {
     if (!e.touches.length) return;
+    // Let marker drag handlers own single-finger touches on a marker.
+    if (e.touches.length === 1 && isOnMarker(e.target)) {
+      touch = null;
+      return;
+    }
     e.preventDefault();
     beginTouch(e);
   };
@@ -156,6 +164,8 @@ export function installInvertedTouchGestures(map: Map): () => void {
   let mouse: MouseState = null;
 
   const onMouseDown = (e: MouseEvent) => {
+    // Don't hijack clicks on markers — maplibre's Marker drag owns them.
+    if (isOnMarker(e.target)) return;
     const mode: 'rotate' | 'pan' | null =
       e.button === 0 ? 'rotate' : e.button === 2 ? 'pan' : null;
     if (!mode) return;
