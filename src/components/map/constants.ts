@@ -23,11 +23,16 @@ const assetPath = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 
 export const MAP_STYLES = [
   {
+    id: 'satellite',
+    label: 'Satellite',
+    style: assetPath('styles/satellite.json'),
+  },
+  { id: 'carto', label: 'Carto', style: assetPath('styles/carto.json') },
+  {
     id: 'shortbread',
     label: 'Shortbread',
     style: assetPath('styles/versatiles-colorful.json'),
   },
-  { id: 'carto', label: 'Carto', style: assetPath('styles/carto.json') },
   {
     id: 'alidade-smooth',
     label: 'Alidade Smooth',

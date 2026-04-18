@@ -30,6 +30,7 @@ import { ToolButton } from './parts/tool-button';
 import { MapStyleControl } from './map-style-control';
 import { isEmbedMode } from '@/utils/embed-mode';
 import { getInitialMapStyle, getCustomStyle, getMapStyleUrl } from './utils';
+import { installInvertedTouchGestures } from './inverted-touch-gestures';
 import {
   CLICK_DELAY_MS,
   DEFAULT_MAP_STYLE_ID,
@@ -93,6 +94,7 @@ export const MapComponent = () => {
   const toggleDirections = useCommonStore((state) => state.toggleDirections);
   const updateSettings = useCommonStore((state) => state.updateSettings);
   const setMapReady = useCommonStore((state) => state.setMapReady);
+  const mapReady = useCommonStore((state) => state.mapReady);
   const { style } = useSearch({ from: '/$activeTab' });
   const [showInfoPopup, setShowInfoPopup] = useState(false);
   const [showContextPopup, setShowContextPopup] = useState(false);
@@ -793,6 +795,16 @@ export const MapComponent = () => {
 
     toast.error(defaultMessage);
   }, []);
+
+  // Swap touch axes to match the HypaMaps 3D viewer: single-finger drag
+  // rotates the map, two-finger drag pans, pinch zooms. Mouse behaviour
+  // is unchanged (left-drag pan, right-drag rotate, scroll zoom).
+  useEffect(() => {
+    if (!mapReady) return;
+    const maplibreMap = mapRef.current?.getMap();
+    if (!maplibreMap) return;
+    return installInvertedTouchGestures(maplibreMap);
+  }, [mapReady]);
 
   return (
     <>
