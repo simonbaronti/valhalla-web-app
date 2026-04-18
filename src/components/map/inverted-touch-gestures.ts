@@ -198,20 +198,39 @@ export function installInvertedTouchGestures(map: Map): () => void {
   const onContextMenu = (e: MouseEvent) => e.preventDefault();
 
   // ── Wheel ──────────────────────────────────────────────────────────────
-  // All wheel input → zoom toward cursor.
-  // Mouse scroll wheel, trackpad two-finger swipe, and pinch (ctrl+wheel)
-  // all zoom. Pinch sends bigger deltas so we scale it down.
+  // Mouse wheel / trackpad pinch (ctrl+wheel) / trackpad two-finger vertical
+  //   → zoom around cursor (cursor stays put, map zooms toward it).
+  // Trackpad two-finger horizontal → pan X.
+  //
+  // Uses map.easeTo with { around: cursorLngLat, duration: 0 } which is
+  // maplibre's native zoom-around-point — correct math, no re-centering.
+  const clampZoom = (z: number) =>
+    Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), z));
+
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
-    const rawDelta = e.deltaY;
-    const zoomDelta = -rawDelta * WHEEL_ZOOM_SENSITIVITY;
     const rect = container.getBoundingClientRect();
-    const around = map.unproject([e.clientX - rect.left, e.clientY - rect.top]);
-    const nextZoom = Math.max(
-      map.getMinZoom(),
-      Math.min(map.getMaxZoom(), map.getZoom() + zoomDelta)
-    );
-    map.jumpTo({ zoom: nextZoom, center: around });
+    const cursor = map.unproject([e.clientX - rect.left, e.clientY - rect.top]);
+
+    if (e.ctrlKey) {
+      // Pinch gesture — browsers report as ctrl+wheel, deltaY is signed.
+      const zoomDelta = -e.deltaY * WHEEL_ZOOM_SENSITIVITY;
+      const nextZoom = clampZoom(map.getZoom() + zoomDelta);
+      map.easeTo({ zoom: nextZoom, around: cursor, duration: 0 });
+      return;
+    }
+
+    // Plain two-finger trackpad / mouse wheel:
+    //   vertical component → zoom around cursor
+    //   horizontal component → horizontal pan
+    if (e.deltaY !== 0) {
+      const zoomDelta = -e.deltaY * WHEEL_ZOOM_SENSITIVITY;
+      const nextZoom = clampZoom(map.getZoom() + zoomDelta);
+      map.easeTo({ zoom: nextZoom, around: cursor, duration: 0 });
+    }
+    if (e.deltaX !== 0) {
+      map.panBy([e.deltaX, 0], { duration: 0 });
+    }
   };
 
   // ── Wire listeners ─────────────────────────────────────────────────────
