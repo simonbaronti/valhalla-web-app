@@ -23,6 +23,11 @@ const assetPath = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 
 export const MAP_STYLES = [
   {
+    id: 'hybrid',
+    label: 'Hybrid (Satellite + labels)',
+    style: assetPath('styles/hybrid.json'),
+  },
+  {
     id: 'satellite',
     label: 'Satellite',
     style: assetPath('styles/satellite.json'),
