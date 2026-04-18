@@ -1,6 +1,5 @@
 import { Outlet } from '@tanstack/react-router';
-import { lazy, Suspense, useEffect } from 'react';
-import { toast } from 'sonner';
+import { lazy, Suspense } from 'react';
 
 const TanStackDevtools = import.meta.env.DEV
   ? lazy(() =>
@@ -27,13 +26,6 @@ const TanStackRouterDevtoolsPanel = import.meta.env.DEV
   : () => null;
 
 export const RootComponent = () => {
-  useEffect(() => {
-    toast.success(
-      'Welcome to Valhalla! Global Routing Service - funded by FOSSGIS e.V.',
-      { position: 'bottom-center', duration: 5000, closeButton: true }
-    );
-  }, []);
-
   return (
     <>
       <Outlet />

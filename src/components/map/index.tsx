@@ -8,6 +8,7 @@ import {
   type MapRef,
   NavigationControl,
   GeolocateControl,
+  AttributionControl,
   type GeolocateErrorEvent,
 } from 'react-map-gl/maplibre';
 import type { MaplibreTerradrawControl } from '@watergis/maplibre-gl-terradraw';
@@ -839,7 +840,9 @@ export const MapComponent = () => {
         maxZoom={18}
         data-testid="map"
         id="mainMap"
+        attributionControl={false}
       >
+        <AttributionControl compact />
         <NavigationControl />
         {!isEmbedMode && (
           <>
