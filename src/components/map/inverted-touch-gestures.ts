@@ -1,40 +1,28 @@
 import type { Map } from 'maplibre-gl';
 
 /**
- * Inverted touch gestures — matches the HypaMaps 3D viewer:
+ * Inverted gestures — matches the HypaMaps 3D viewer across input types.
  *
- *   One finger  → rotate (change bearing)
- *   Two fingers → pan
- *   Pinch       → zoom (distance change between the two fingers)
+ * Touch:
+ *   1 finger   → rotate
+ *   2 fingers  → pan + pinch-zoom
  *
- * Default MapLibre touch behaviour is one-finger pan + two-finger
- * pinch-zoom/rotate. The CMS route planner iframe sits next to the 3D
- * model viewer, and users kept confusing the two — swapping the touch
- * axes here keeps the mental model consistent.
+ * Mouse / trackpad:
+ *   Left-drag           → rotate
+ *   Right-drag          → pan
+ *   2-finger trackpad   → pan (plain wheel deltas)
+ *   Pinch / ctrl+wheel  → zoom
  *
- * Mouse behaviour is untouched: left-drag still pans, right-drag
- * still rotates, scroll still zooms. We take over ONLY touch.
- *
- * Implementation notes
- * - We disable MapLibre's default touch-related handlers (dragPan,
- *   touchZoomRotate, touchPitch) BEFORE attaching our own listeners.
- *   Disabling dragPan also kills mouse-drag-pan, so we reimplement
- *   that with a lightweight mousedown/mousemove/mouseup pair below.
- * - We listen on the map's canvas container with `passive: false` so
- *   we can preventDefault on touch, stopping page scroll hijack.
- * - We do NOT stop propagation. MapLibre's internal event system
- *   still fires `touchstart` / `touchend` / etc. on the map instance
- *   so react-map-gl's `onTouchStart` / `onTouchEnd` props keep
- *   working (waypoint long-press etc. relies on them).
+ * We disable MapLibre's default touch, drag-pan, drag-rotate, and
+ * scroll-zoom handlers and reimplement the subset we want. The Map
+ * component must also pass `dragPan={false}` / `touchZoomRotate={false}`
+ * / `touchPitch={false}` / `scrollZoom={false}` / `dragRotate={false}`
+ * so react-map-gl does not re-enable them on re-render.
  */
 
 type TouchState =
   | null
-  | {
-      mode: 'rotate';
-      startX: number;
-      startBearing: number;
-    }
+  | { mode: 'rotate'; startX: number; startBearing: number }
   | {
       mode: 'pan-zoom';
       startDistance: number;
@@ -46,22 +34,25 @@ type TouchState =
     };
 
 type MouseState = null | {
+  mode: 'rotate' | 'pan';
   lastX: number;
   lastY: number;
+  startBearing: number;
 };
 
-// Degrees of bearing change per pixel of horizontal finger drag.
-const ROTATE_SENSITIVITY = 0.35;
+const ROTATE_SENSITIVITY = 0.35; // deg per px
+const WHEEL_ZOOM_SENSITIVITY = 0.01; // zoom units per wheel-delta unit (ctrl+wheel / pinch)
 
 export function installInvertedTouchGestures(map: Map): () => void {
-  // Turn off the defaults we're replacing.
   map.dragPan.disable();
+  map.dragRotate.disable();
   map.touchZoomRotate.disable();
   map.touchPitch.disable();
+  map.scrollZoom.disable();
 
   const container = map.getCanvasContainer();
 
-  // ── Touch: 1 finger rotate, 2 finger pan + pinch zoom ──────────────────
+  // ── Touch ──────────────────────────────────────────────────────────────
   let touch: TouchState = null;
 
   const beginTouch = (e: TouchEvent) => {
@@ -100,7 +91,6 @@ export function installInvertedTouchGestures(map: Map): () => void {
   const onTouchMove = (e: TouchEvent) => {
     if (!touch) return;
     e.preventDefault();
-
     const t1 = e.touches[0];
     const t2 = e.touches[1];
 
@@ -117,11 +107,9 @@ export function installInvertedTouchGestures(map: Map): () => void {
       const currentCentroidX = (t1.clientX + t2.clientX) / 2;
       const currentCentroidY = (t1.clientY + t2.clientY) / 2;
 
-      // Zoom: log2 ratio of pinch distance gives a consistent feel.
       const zoomDelta = Math.log2(currentDistance / touch.startDistance);
       const nextZoom = touch.startZoom + zoomDelta;
 
-      // Pan: convert the centroid pixel delta into a map-centre shift.
       const startCenterPoint = map.project([
         touch.startCenterLng,
         touch.startCenterLat,
@@ -133,7 +121,6 @@ export function installInvertedTouchGestures(map: Map): () => void {
         startCenterPoint.y - panDy,
       ]);
 
-      // Apply zoom first so project/unproject maths stay aligned.
       map.jumpTo({ zoom: nextZoom, center: nextCenter });
     }
   };
@@ -143,19 +130,29 @@ export function installInvertedTouchGestures(map: Map): () => void {
       touch = null;
       return;
     }
-    // Finger count changed mid-gesture — re-seed the baseline so the
-    // next move isn't interpreted relative to a stale anchor.
     beginTouch(e);
   };
 
-  // ── Mouse: restore left-drag pan (dragPan was disabled above) ──────────
+  // ── Mouse ──────────────────────────────────────────────────────────────
+  // Left-drag rotates, right-drag pans.
   let mouse: MouseState = null;
 
   const onMouseDown = (e: MouseEvent) => {
-    // Left button only; right-click still rotates via maplibre's
-    // separate `dragRotate` handler which we left enabled.
-    if (e.button !== 0) return;
-    mouse = { lastX: e.clientX, lastY: e.clientY };
+    if (e.button === 0) {
+      mouse = {
+        mode: 'rotate',
+        lastX: e.clientX,
+        lastY: e.clientY,
+        startBearing: map.getBearing(),
+      };
+    } else if (e.button === 2) {
+      mouse = {
+        mode: 'pan',
+        lastX: e.clientX,
+        lastY: e.clientY,
+        startBearing: map.getBearing(),
+      };
+    }
   };
 
   const onMouseMove = (e: MouseEvent) => {
@@ -164,11 +161,40 @@ export function installInvertedTouchGestures(map: Map): () => void {
     const dy = e.clientY - mouse.lastY;
     mouse.lastX = e.clientX;
     mouse.lastY = e.clientY;
-    map.panBy([-dx, -dy], { duration: 0 });
+
+    if (mouse.mode === 'rotate') {
+      map.setBearing(map.getBearing() + dx * ROTATE_SENSITIVITY);
+    } else {
+      map.panBy([-dx, -dy], { duration: 0 });
+    }
   };
 
   const onMouseUp = () => {
     mouse = null;
+  };
+
+  // Prevent the browser's context menu so right-drag-pan feels clean.
+  const onContextMenu = (e: MouseEvent) => e.preventDefault();
+
+  // ── Wheel ──────────────────────────────────────────────────────────────
+  // Trackpad two-finger scroll → pan.
+  // Trackpad pinch / ctrl+wheel → zoom.
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault();
+
+    if (e.ctrlKey) {
+      // Pinch-zoom gesture (browsers report as ctrl+wheel) or ctrl+scroll.
+      const zoomDelta = -e.deltaY * WHEEL_ZOOM_SENSITIVITY;
+      const rect = container.getBoundingClientRect();
+      const around = map.unproject([
+        e.clientX - rect.left,
+        e.clientY - rect.top,
+      ]);
+      map.jumpTo({ zoom: map.getZoom() + zoomDelta, center: around });
+    } else {
+      // Two-finger trackpad pan — map pixel deltas straight to panBy.
+      map.panBy([e.deltaX, e.deltaY], { duration: 0 });
+    }
   };
 
   // ── Wire listeners ─────────────────────────────────────────────────────
@@ -178,24 +204,27 @@ export function installInvertedTouchGestures(map: Map): () => void {
   container.addEventListener('touchcancel', onTouchEnd, { passive: false });
 
   container.addEventListener('mousedown', onMouseDown);
-  // mousemove / mouseup on window so we don't lose a drag if the cursor
-  // leaves the map canvas before release.
+  container.addEventListener('contextmenu', onContextMenu);
   window.addEventListener('mousemove', onMouseMove);
   window.addEventListener('mouseup', onMouseUp);
 
-  // Cleanup — caller runs this on unmount / style change.
+  container.addEventListener('wheel', onWheel, { passive: false });
+
   return () => {
     container.removeEventListener('touchstart', onTouchStart);
     container.removeEventListener('touchmove', onTouchMove);
     container.removeEventListener('touchend', onTouchEnd);
     container.removeEventListener('touchcancel', onTouchEnd);
     container.removeEventListener('mousedown', onMouseDown);
+    container.removeEventListener('contextmenu', onContextMenu);
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
+    container.removeEventListener('wheel', onWheel);
 
-    // Restore defaults in case the map outlives this handler set.
     map.dragPan.enable();
+    map.dragRotate.enable();
     map.touchZoomRotate.enable();
     map.touchPitch.enable();
+    map.scrollZoom.enable();
   };
 }

@@ -838,6 +838,12 @@ export const MapComponent = () => {
         maxBounds={maxBounds}
         minZoom={2}
         maxZoom={18}
+        maxPitch={0}
+        dragPan={false}
+        dragRotate={false}
+        touchZoomRotate={false}
+        touchPitch={false}
+        scrollZoom={false}
         data-testid="map"
         id="mainMap"
         attributionControl={false}
