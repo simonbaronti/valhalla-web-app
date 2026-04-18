@@ -28,7 +28,6 @@ import {
 } from '@/components/ui/tooltip';
 import { isEmbedMode } from '@/utils/embed-mode';
 import { SliderSetting } from '@/components/ui/slider-setting';
-import { CheckboxSetting } from '@/components/ui/checkbox-setting';
 
 export const DirectionsControl = () => {
   const waypoints = useDirectionsStore((state) => state.waypoints);
@@ -192,16 +191,6 @@ export const DirectionsControl = () => {
                 if (isNaN(value)) value = 0.5;
                 value = Math.max(0.5, Math.min(value, 25));
                 updateSettings('walking_speed', value);
-                refetchDirections();
-              }}
-            />
-            <CheckboxSetting
-              id="shortest"
-              label="Shortest"
-              description="Use shortest distance instead of fastest time"
-              checked={Boolean(settings.shortest)}
-              onCheckedChange={(checked) => {
-                updateSettings('shortest', checked);
                 refetchDirections();
               }}
             />

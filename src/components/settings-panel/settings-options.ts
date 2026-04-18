@@ -884,7 +884,7 @@ export const settingsInit = {
   service_penalty: 15,
   service_factor: 1,
   exclude_unpaved: false,
-  shortest: false,
+  shortest: true,
   exclude_cash_only_tolls: false,
   bicycle_type: 'Hybrid' as BicycleType,
   type: 'Foot' as PedestrianType,

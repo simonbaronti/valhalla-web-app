@@ -1,15 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 
 import { downloadFile } from '@/utils/download-file';
 import { Summary } from './summary';
-import { Maneuvers } from './maneuvers';
 import { Button } from '@/components/ui/button';
 import type { ParsedDirectionsGeometry } from '@/components/types';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +12,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Download, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Separator } from '@/components/ui/separator';
 import { exportDataAsJson } from '@/utils/export';
 import { getDateTimeString } from '@/utils/date-time';
 import { isEmbedMode, postRouteToParent } from '@/utils/embed-mode';
@@ -36,8 +29,6 @@ export const RouteCard = ({
   isActive,
   onSelect,
 }: RouteCardProps) => {
-  const [showManeuvers, setShowManeuvers] = useState(false);
-
   const exportToGeoJson = useCallback(() => {
     const coordinates = data?.decodedGeometry;
     if (!coordinates) return;
@@ -71,7 +62,7 @@ export const RouteCard = ({
         className={cn(
           'flex flex-col gap-2.5 border rounded-md p-2 cursor-pointer transition-colors',
           'focus-within:bg-muted/50 hover:bg-muted/50',
-          showManeuvers ? 'bg-muted/50' : 'bg-background',
+          'bg-background',
           isActive && 'border-l-4 border-l-primary'
         )}
         onClick={onSelect}
@@ -89,53 +80,39 @@ export const RouteCard = ({
           index={index}
           routeCoordinates={data.decodedGeometry ?? []}
         />
-        <Collapsible open={showManeuvers} onOpenChange={setShowManeuvers}>
-          <div className="flex justify-between">
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm">
-                {showManeuvers ? 'Hide Maneuvers' : 'Show Maneuvers'}
+        {isEmbedMode ? (
+          <Button
+            variant="default"
+            size="sm"
+            className="w-full"
+            onClick={(e) => {
+              e.stopPropagation();
+              postRouteToParent(data);
+            }}
+          >
+            <Save className="size-4" />
+            Save Route
+          </Button>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full">
+                <Download className="size-4" />
+                Export
               </Button>
-            </CollapsibleTrigger>
-            {isEmbedMode ? (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  postRouteToParent(data);
-                }}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem
+                onClick={() => exportDataAsJson(data, 'valhalla-directions')}
               >
-                <Save className="size-4" />
-                Save Route
-              </Button>
-            ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Download className="size-4" />
-                    Export
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      exportDataAsJson(data, 'valhalla-directions')
-                    }
-                  >
-                    JSON
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={exportToGeoJson}>
-                    GeoJSON
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-          <CollapsibleContent>
-            <Separator className="my-2" />
-            <Maneuvers legs={data.trip.legs} index={index} />
-          </CollapsibleContent>
-        </Collapsible>
+                JSON
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportToGeoJson}>
+                GeoJSON
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </>
   );
