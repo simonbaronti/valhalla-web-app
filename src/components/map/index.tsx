@@ -31,7 +31,10 @@ import { ToolButton } from './parts/tool-button';
 import { MapStyleControl } from './map-style-control';
 import { isEmbedMode } from '@/utils/embed-mode';
 import { getInitialMapStyle, getCustomStyle, getMapStyleUrl } from './utils';
-import { installInvertedTouchGestures } from './inverted-touch-gestures';
+import {
+  installInvertedTouchGestures,
+  consumeSuppressedClick,
+} from './inverted-touch-gestures';
 import {
   CLICK_DELAY_MS,
   DEFAULT_MAP_STYLE_ID,
@@ -44,7 +47,6 @@ import { IsochronePolygons } from './parts/isochrone-polygons';
 import { IsochroneLocations } from './parts/isochrone-locations';
 import { HeightgraphHoverMarker } from './parts/heightgraph-hover-marker';
 import { BrandLogos } from './parts/brand-logos';
-import { MapInfoPopup } from './parts/map-info-popup';
 import { MapContextMenu } from './parts/map-context-menu';
 import { RouteHoverPopup } from './parts/route-hover-popup';
 import { TilesInfoPopup } from './parts/tiles-info-popup';
@@ -73,6 +75,19 @@ import { toast } from 'sonner';
 
 const { center, zoom: zoom_initial } = getInitialMapPosition();
 
+// Lock panning to ~10 miles (16.09 km) of the initial centre.
+const ORIGIN_LOCK_MILES = 10;
+const originLockBounds = ((): [[number, number], [number, number]] => {
+  const km = ORIGIN_LOCK_MILES * 1.609344;
+  const latDelta = km / 111;
+  const lngDelta =
+    km / (111 * Math.max(0.01, Math.cos((center[1] * Math.PI) / 180)));
+  return [
+    [center[0] - lngDelta, center[1] - latDelta],
+    [center[0] + lngDelta, center[1] + latDelta],
+  ];
+})();
+
 interface MarkerData {
   id: string;
   lng: number;
@@ -97,14 +112,12 @@ export const MapComponent = () => {
   const setMapReady = useCommonStore((state) => state.setMapReady);
   const mapReady = useCommonStore((state) => state.mapReady);
   const { style } = useSearch({ from: '/$activeTab' });
-  const [showInfoPopup, setShowInfoPopup] = useState(false);
   const [showContextPopup, setShowContextPopup] = useState(false);
-  const [isHeightLoading, setIsHeightLoading] = useState(false);
+  const [, setIsHeightLoading] = useState(false);
   const [popupLngLat, setPopupLngLat] = useState<{
     lng: number;
     lat: number;
   } | null>(null);
-  const [elevation, setElevation] = useState('');
   const [heightPayload, setHeightPayload] = useState<{
     range: boolean;
     shape: { lat: number; lon: number }[];
@@ -284,32 +297,6 @@ export const MapComponent = () => {
     },
     [directionsPanelOpen, toggleDirections, navigate]
   );
-
-  const getHeight = useCallback(async (lng: number, lat: number) => {
-    setIsHeightLoading(true);
-
-    try {
-      const response = await fetch(`${getValhallaUrl()}/height`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildHeightRequest([[lat, lng]])),
-      });
-
-      if (!response.ok) {
-        throw new Error('Could not fetch resource');
-      }
-
-      const data = await response.json();
-
-      if ('height' in data) {
-        setElevation(data.height[0] + ' m');
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsHeightLoading(false);
-    }
-  }, []);
 
   const handleAddWaypoint = useCallback(
     (index: number) => {
@@ -529,6 +516,9 @@ export const MapComponent = () => {
 
   const handleMapClick = useCallback(
     (event: maplibregl.MapLayerMouseEvent) => {
+      // Swallow click if the gesture was actually a rotate/pan drag.
+      if (consumeSuppressedClick()) return;
+
       // Prevent click if we just handled a long press
       if (handledLongPressRef.current) {
         handledLongPressRef.current = false;
@@ -537,11 +527,6 @@ export const MapComponent = () => {
 
       if (showContextPopup) {
         setShowContextPopup(false);
-        return;
-      }
-
-      if (showInfoPopup) {
-        setShowInfoPopup(false);
         return;
       }
 
@@ -588,8 +573,7 @@ export const MapComponent = () => {
             handleMapTilesClick(event);
           } else {
             setPopupLngLat(pendingLngLat);
-            setShowInfoPopup(true);
-            getHeight(pendingLngLat.lng, pendingLngLat.lat);
+            setShowContextPopup(true);
           }
         }
         clickStateRef.current.timer = null;
@@ -597,8 +581,6 @@ export const MapComponent = () => {
       }, CLICK_DELAY_MS);
     },
     [
-      getHeight,
-      showInfoPopup,
       showContextPopup,
       cancelPendingClick,
       activeTab,
@@ -625,7 +607,6 @@ export const MapComponent = () => {
 
       const { lngLat } = event;
       setPopupLngLat(lngLat);
-      setShowInfoPopup(false);
       setShowContextPopup(true);
     },
     [activeTab]
@@ -741,7 +722,7 @@ export const MapComponent = () => {
 
   const handleMouseMove = useCallback(
     (event: maplibregl.MapLayerMouseEvent) => {
-      if (!mapRef.current || showInfoPopup) return; // Don't show if click popup is visible
+      if (!mapRef.current || showContextPopup) return; // Don't show if click popup is visible
 
       const features = event.features;
       // Check if we're hovering over the routes-line layer
@@ -777,7 +758,7 @@ export const MapComponent = () => {
         }
       }
     },
-    [showInfoPopup, routeHoverPopup, onRouteLineHover]
+    [showContextPopup, routeHoverPopup, onRouteLineHover]
   );
 
   const handleMouseLeave = useCallback(() => {
@@ -804,6 +785,16 @@ export const MapComponent = () => {
     if (!mapReady) return;
     const maplibreMap = mapRef.current?.getMap();
     if (!maplibreMap) return;
+    // Force compact attribution to start collapsed (maplibre defaults to open).
+    const attribEl = maplibreMap
+      .getContainer()
+      .querySelector<HTMLElement>('.maplibregl-ctrl-attrib');
+    if (attribEl) {
+      attribEl.classList.remove('maplibregl-compact-show');
+      if (attribEl instanceof HTMLDetailsElement) attribEl.open = false;
+      const details = attribEl.querySelector('details');
+      if (details) details.open = false;
+    }
     return installInvertedTouchGestures(maplibreMap);
   }, [mapReady]);
 
@@ -817,7 +808,6 @@ export const MapComponent = () => {
         onLoad={() => setMapReady(true)}
         onClick={handleMapClick}
         onDblClick={handleMapDblClick}
-        onContextMenu={handleMapContextMenu}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onMouseMove={handleMouseMove}
@@ -835,7 +825,7 @@ export const MapComponent = () => {
         }
         mapStyle={resolvedMapStyle}
         style={{ width: '100%', height: '100vh' }}
-        maxBounds={maxBounds}
+        maxBounds={originLockBounds ?? maxBounds}
         minZoom={2}
         maxZoom={18}
         maxPitch={0}
@@ -908,25 +898,6 @@ export const MapComponent = () => {
               onAddWaypoint={handleAddWaypoint}
               onAddIsoWaypoint={handleAddIsoWaypoint}
               popupLocation={popupLngLat}
-            />
-          </Popup>
-        )}
-
-        {showInfoPopup && popupLngLat && (
-          <Popup
-            longitude={popupLngLat.lng}
-            latitude={popupLngLat.lat}
-            closeButton={false}
-            closeOnClick={false}
-            maxWidth="none"
-          >
-            <MapInfoPopup
-              popupLngLat={popupLngLat}
-              elevation={elevation}
-              isHeightLoading={isHeightLoading}
-              onClose={() => {
-                setShowInfoPopup(false);
-              }}
             />
           </Popup>
         )}

@@ -37,11 +37,25 @@ type MouseState = null | {
   mode: 'rotate' | 'pan';
   lastX: number;
   lastY: number;
+  startX: number;
+  startY: number;
   startBearing: number;
 };
 
 const ROTATE_SENSITIVITY = 0.35; // deg per px
-const WHEEL_ZOOM_SENSITIVITY = 0.01; // zoom units per wheel-delta unit (ctrl+wheel / pinch)
+const WHEEL_ZOOM_SENSITIVITY = 0.01; // zoom units per wheel-delta unit
+const CLICK_DRAG_THRESHOLD_PX = 4;
+
+// Set briefly when a mouse-up follows a drag; consumed by the map click
+// handler so we don't open a popup at the end of a rotate/pan gesture.
+let _suppressNextClick = false;
+export function consumeSuppressedClick(): boolean {
+  if (_suppressNextClick) {
+    _suppressNextClick = false;
+    return true;
+  }
+  return false;
+}
 
 export function installInvertedTouchGestures(map: Map): () => void {
   map.dragPan.disable();
@@ -138,21 +152,17 @@ export function installInvertedTouchGestures(map: Map): () => void {
   let mouse: MouseState = null;
 
   const onMouseDown = (e: MouseEvent) => {
-    if (e.button === 0) {
-      mouse = {
-        mode: 'rotate',
-        lastX: e.clientX,
-        lastY: e.clientY,
-        startBearing: map.getBearing(),
-      };
-    } else if (e.button === 2) {
-      mouse = {
-        mode: 'pan',
-        lastX: e.clientX,
-        lastY: e.clientY,
-        startBearing: map.getBearing(),
-      };
-    }
+    const mode: 'rotate' | 'pan' | null =
+      e.button === 0 ? 'rotate' : e.button === 2 ? 'pan' : null;
+    if (!mode) return;
+    mouse = {
+      mode,
+      lastX: e.clientX,
+      lastY: e.clientY,
+      startX: e.clientX,
+      startY: e.clientY,
+      startBearing: map.getBearing(),
+    };
   };
 
   const onMouseMove = (e: MouseEvent) => {
@@ -169,7 +179,14 @@ export function installInvertedTouchGestures(map: Map): () => void {
     }
   };
 
-  const onMouseUp = () => {
+  const onMouseUp = (e: MouseEvent) => {
+    if (mouse) {
+      const totalDx = e.clientX - mouse.startX;
+      const totalDy = e.clientY - mouse.startY;
+      if (Math.hypot(totalDx, totalDy) > CLICK_DRAG_THRESHOLD_PX) {
+        _suppressNextClick = true;
+      }
+    }
     mouse = null;
   };
 
@@ -177,24 +194,20 @@ export function installInvertedTouchGestures(map: Map): () => void {
   const onContextMenu = (e: MouseEvent) => e.preventDefault();
 
   // ── Wheel ──────────────────────────────────────────────────────────────
-  // Trackpad two-finger scroll → pan.
-  // Trackpad pinch / ctrl+wheel → zoom.
+  // All wheel input → zoom toward cursor.
+  // Mouse scroll wheel, trackpad two-finger swipe, and pinch (ctrl+wheel)
+  // all zoom. Pinch sends bigger deltas so we scale it down.
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
-
-    if (e.ctrlKey) {
-      // Pinch-zoom gesture (browsers report as ctrl+wheel) or ctrl+scroll.
-      const zoomDelta = -e.deltaY * WHEEL_ZOOM_SENSITIVITY;
-      const rect = container.getBoundingClientRect();
-      const around = map.unproject([
-        e.clientX - rect.left,
-        e.clientY - rect.top,
-      ]);
-      map.jumpTo({ zoom: map.getZoom() + zoomDelta, center: around });
-    } else {
-      // Two-finger trackpad pan — map pixel deltas straight to panBy.
-      map.panBy([e.deltaX, e.deltaY], { duration: 0 });
-    }
+    const rawDelta = e.deltaY;
+    const zoomDelta = -rawDelta * WHEEL_ZOOM_SENSITIVITY;
+    const rect = container.getBoundingClientRect();
+    const around = map.unproject([e.clientX - rect.left, e.clientY - rect.top]);
+    const nextZoom = Math.max(
+      map.getMinZoom(),
+      Math.min(map.getMaxZoom(), map.getZoom() + zoomDelta)
+    );
+    map.jumpTo({ zoom: nextZoom, center: around });
   };
 
   // ── Wire listeners ─────────────────────────────────────────────────────
